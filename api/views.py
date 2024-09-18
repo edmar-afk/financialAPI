@@ -114,23 +114,19 @@ def create_chat_room_and_send_message(request, receiver_id):
     if not content:
         return Response({'error': 'Message content is required.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    # Retrieve the receiver user from the receiver_id
     try:
         receiver = User.objects.get(id=receiver_id)
     except User.DoesNotExist:
         return Response({'error': 'Receiver does not exist.'}, status=status.HTTP_404_NOT_FOUND)
 
-    # Check if a chat room already exists with these users
     existing_chat_rooms = ChatRoom.objects.filter(users=sender).filter(users=receiver)
 
     if existing_chat_rooms.exists():
         chat_room = existing_chat_rooms.first()
     else:
-        # Create a new chat room and add both sender and receiver (you can add more users as needed)
         chat_room = ChatRoom.objects.create()
         chat_room.users.add(sender, receiver)
 
-    # Create the message in the chat room
     message_data = {
         'chat_room': chat_room.id,
         'sender': sender.id,
@@ -152,16 +148,14 @@ def create_chat_room_and_send_message(request, receiver_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_chat_rooms_for_logged_in_user(request):
-    # Get the logged-in user
+
     user = request.user
 
-    # Filter chat rooms where the logged-in user is a participant
     chat_rooms = ChatRoom.objects.filter(users=user)
     
-    # Prepare data with the latest message
     data = []
     for room in chat_rooms:
-        other_users = room.users.exclude(id=user.id)  # Exclude the current user
+        other_users = room.users.exclude(id=user.id)
         latest_message = Message.objects.filter(chat_room=room).order_by('-timestamp').first()
         latest_message_content = latest_message.content if latest_message else "No messages yet"
         latest_message_timestamp = latest_message.timestamp if latest_message else None
@@ -183,18 +177,14 @@ class ChatRoomView(generics.ListAPIView):
     permission_classes = [AllowAny]
     
     def get_queryset(self):
-        # Get both users from the URL parameters
         other_user_id = self.kwargs['other_user_id']
         current_user_id = self.kwargs['current_user_id']
 
-        # Get the User objects for both users
         other_user = get_object_or_404(User, id=other_user_id)
         current_user = get_object_or_404(User, id=current_user_id)
 
-        # Filter chat rooms that include both users
         chat_rooms = ChatRoom.objects.filter(users__in=[current_user, other_user]).distinct()
 
-        # Further filter to ensure both users are in the chat room
         chat_rooms = [chat_room for chat_room in chat_rooms if 
                       chat_room.users.filter(id=current_user_id).exists() and
                       chat_room.users.filter(id=other_user_id).exists()]
@@ -205,18 +195,16 @@ class ChatRoomView(generics.ListAPIView):
         chat_rooms = self.get_queryset()
         chat_room_data = []
         for chat_room in chat_rooms:
-            # Serialize the chat room data
             chat_room_serializer = ChatRoomSerializer(chat_room)
             chat_room_id = chat_room_serializer.data['id']
-            print(f"Chat Room ID: {chat_room_id}")  # Debugging line
+            print(f"Chat Room ID: {chat_room_id}")
             
             # Get messages for the chat room
             messages = Message.objects.filter(chat_room=chat_room_id).order_by('timestamp')
-            print(f"Messages: {messages}")  # Debugging line
+            print(f"Messages: {messages}")
             
             message_serializer = MessageSerializer(messages, many=True)
             
-            # Collect chat room info and messages
             chat_room_data.append({
                 'chat_room_id': chat_room_id,
                 'messages': message_serializer.data
@@ -230,13 +218,12 @@ class QuizCreateView(generics.CreateAPIView):
     serializer_class = QuizSerializer
 
     def perform_create(self, serializer):
-        # Assign the current user as the provider of the quiz
         serializer.save(provider=self.request.user)
         
 
 
 class QuizListView(generics.ListAPIView):
-    queryset = Quiz.objects.all()  # Fetch all quizzes
+    queryset = Quiz.objects.all() 
     serializer_class = QuizSerializer
     permission_classes = [AllowAny]
     
@@ -256,11 +243,9 @@ class SubmitQuizAnswerView(APIView):
         except Quiz.DoesNotExist:
             return Response({"error": "Quiz not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        # Check if the user has already submitted an answer for this quiz
         if UserQuiz.objects.filter(user=request.user, quiz=quiz).exists():
             return Response({"error": "You have already submitted an answer for this quiz."}, status=status.HTTP_400_BAD_REQUEST)
 
-        # Prepare data with additional fields if necessary
         data = {
             'user': request.user.id,  # User ID
             'quiz': quiz.id,          # Quiz ID
@@ -275,7 +260,7 @@ class SubmitQuizAnswerView(APIView):
             user_quiz = serializer.save(user=request.user, quiz=quiz)
             return Response(UserQuizSerializer(user_quiz).data, status=status.HTTP_201_CREATED)
         else:
-            print("Serializer errors:", serializer.errors)  # Log errors
+            print("Serializer errors:", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
         
 
@@ -291,18 +276,16 @@ class CheckQuizStatusView(APIView):
         user_quiz = UserQuiz.objects.filter(user=request.user, quiz=quiz).first()
 
         if user_quiz:
-            # Return the score, answer, and a message indicating the quiz has been taken
             return Response({
                 "status": "already_taken",
                 "score": user_quiz.score,
-                "answer": user_quiz.answer  # Include the user's answer in the response
+                "answer": user_quiz.answer
             }, status=status.HTTP_200_OK)
-        
-        # Return a response indicating that the quiz has not been taken
+            
         return Response({
             "status": "not_taken",
             "score": 0,
-            "answer": ""  # Send an empty answer if the quiz has not been taken
+            "answer": ""
         }, status=status.HTTP_200_OK)
         
 class QuizByProviderView(generics.ListAPIView):
@@ -314,7 +297,7 @@ class QuizByProviderView(generics.ListAPIView):
         return Quiz.objects.filter(provider_id=provider_id)
     
 class UserQuizListView(generics.ListAPIView):
-    serializer_class = UserQuizDetailSerializer  # Use the new serializer
+    serializer_class = UserQuizDetailSerializer
 
     def get_queryset(self):
         quiz_id = self.kwargs['quiz_id']
@@ -326,10 +309,8 @@ class UserQuizUpdateView(UpdateAPIView):
     serializer_class = UserQuizDetailSerializer
 
     def update(self, request, *args, **kwargs):
-        # Get the UserQuiz object by ID
         user_quiz = self.get_object()
 
-        # Update the score and comment
         serializer = self.get_serializer(user_quiz, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
