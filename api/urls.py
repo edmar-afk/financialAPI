@@ -1,7 +1,11 @@
-from django.urls import path
+from django.urls import path, include
 from . import views
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
-
+from rest_framework.routers import DefaultRouter
+from .views import ChatbotViewSet
+# Create a router and register the ChatbotViewSet
+api_router = DefaultRouter()
+api_router.register(r'chatbot', ChatbotViewSet, basename='chatbot')
 
 urlpatterns = [
     path('register/', views.CreateUserView.as_view(), name='register'),
@@ -36,4 +40,6 @@ urlpatterns = [
     path('quizzes/<int:quiz_id>/users/', views.UserQuizListView.as_view(), name='user-quiz-list'),
     
     path('userquiz/<int:pk>/update/', views.UserQuizUpdateView.as_view(), name='userquiz-update'),
+    
+    path('', include(api_router.urls)),
 ]

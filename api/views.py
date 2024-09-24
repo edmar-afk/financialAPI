@@ -2,12 +2,12 @@
 from rest_framework import generics, permissions, views
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from django.contrib.auth.models import User
-from rest_framework import status
-from .serializers import UserSerializer, UserProfileSerializer, MessageSerializer, ChatRoomSerializer, QuizSerializer, UserQuizDetailSerializer, UserQuizSerializer
+from rest_framework import status, viewsets
+from .serializers import UserSerializer, UserProfileSerializer, MessageSerializer, ChatRoomSerializer, ChatbotSerializer, QuizSerializer, UserQuizDetailSerializer, UserQuizSerializer
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from django.http import FileResponse, Http404
+from django.http import FileResponse, Http404, JsonResponse
 from django.shortcuts import get_object_or_404
 from django.views import View
 from rest_framework.decorators import api_view, permission_classes
@@ -15,8 +15,122 @@ from .models import UserProfile, Message, ChatRoom, Quiz, UserQuiz
 from django.db.models import Q, Max
 from django.contrib.auth import get_user_model
 from rest_framework.generics import RetrieveAPIView, UpdateAPIView
-
+import json
+from docx import Document
+from sentence_transformers import SentenceTransformer, util
+from django.views.decorators.csrf import csrf_exempt
 UserModel = get_user_model()
+
+
+
+
+import logging
+import os
+from typing import List, Optional
+from rest_framework.response import Response
+import fitz  # PyMuPDF
+from sentence_transformers import SentenceTransformer, util
+from pathlib import Path
+from docx import Document
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+# Define the relative path to the DOCX file
+def get_docx_path() -> str:
+    # Path to the DOCX file relative to this script
+    return str(Path(__file__).parent / 'knowledge.docx')
+
+def load_docx(file_path: str) -> str:
+    try:
+        full_path = file_path
+        if not os.path.exists(full_path):
+            logger.error(f"DOCX file does not exist at: {full_path}")
+            return ""
+        doc = Document(full_path)
+        text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+        logger.info("DOCX loaded successfully.")
+        return text
+    except Exception as e:
+        logger.error(f"Error loading DOCX: {e}")
+        return ""
+
+# Split the extracted text into chunks for easier searching
+def split_text_into_chunks(text: str, chunk_size: int = 800) -> List[str]:
+    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+
+model = SentenceTransformer('all-MiniLM-L6-v2')
+
+# Encode the text chunks
+def encode_chunks(chunks: List[str]) -> List:
+    return model.encode(chunks, convert_to_tensor=True)
+
+# Find the best matching text chunk for a user question
+def find_best_match_in_docx(user_question: str, text_chunks: List[str], threshold: float = 0.1) -> Optional[str]:
+    user_question_embedding = model.encode(user_question, convert_to_tensor=True)
+    chunk_embeddings = encode_chunks(text_chunks)
+    similarities = util.pytorch_cos_sim(user_question_embedding, chunk_embeddings)
+    
+    logger.info(f"User question embedding: {user_question_embedding}")
+    logger.info(f"Chunk embeddings: {chunk_embeddings}")
+    logger.info(f"Similarities: {similarities}")
+
+    # Get the index of the most similar chunk
+    most_similar_idx = similarities.argmax()
+    logger.info(f"Most similar index: {most_similar_idx}")
+    logger.info(f"Highest similarity score: {similarities.max()}")
+
+    # Check if the highest similarity chunk is a single paragraph
+    answer = text_chunks[most_similar_idx] if similarities.max() > threshold else None
+
+    if answer and '\n' not in answer:
+        # Return the answer if it is a single paragraph
+        return answer
+
+    # Attempt to find a valid paragraph without new lines
+    for idx, chunk in enumerate(text_chunks):
+        if '\n' not in chunk and similarities[idx] > threshold:
+            return chunk  # Return the first valid paragraph found
+
+    return None  # No valid single paragraph found
+
+class ChatbotViewSet(viewsets.ViewSet):
+    serializer_class = ChatbotSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            user_question = serializer.validated_data['question']
+            
+            # Load and process the DOCX file
+            docx_path = get_docx_path()  # Get the relative path
+            docx_text = load_docx(docx_path)  # Use load_docx instead of load_pdf
+            if not docx_text:
+                return Response({'answer': "I don't understand the question."}, status=status.HTTP_200_OK)
+
+            text_chunks = split_text_into_chunks(docx_text)
+            logger.info(f"Text chunks: {text_chunks[:3]}")  # Log first few chunks for inspection
+
+            # Find the best match in the DOCX text
+            answer = find_best_match_in_docx(user_question, text_chunks)
+
+            if answer:
+                return Response({'answer': answer}, status=status.HTTP_200_OK)
+            else:
+                return Response({'answer': "I don't understand the question."}, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+
+
+
+
+
+
+
 
 class CreateUserView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -279,13 +393,15 @@ class CheckQuizStatusView(APIView):
             return Response({
                 "status": "already_taken",
                 "score": user_quiz.score,
-                "answer": user_quiz.answer
+                "answer": user_quiz.answer,
+                "comment": user_quiz.comment
             }, status=status.HTTP_200_OK)
             
         return Response({
             "status": "not_taken",
             "score": 0,
-            "answer": ""
+            "answer": "",
+            "comment": ""
         }, status=status.HTTP_200_OK)
         
 class QuizByProviderView(generics.ListAPIView):

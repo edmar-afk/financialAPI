@@ -66,3 +66,8 @@ class UserQuizDetailSerializer(serializers.ModelSerializer):
     class Meta:
         model = UserQuiz
         fields = ['id', 'user', 'quiz', 'answer', 'status', 'score', 'created_at', 'comment']
+        
+        
+
+class ChatbotSerializer(serializers.Serializer):
+    question = serializers.CharField()
