@@ -16,8 +16,7 @@ from django.db.models import Q, Max
 from django.contrib.auth import get_user_model
 from rest_framework.generics import RetrieveAPIView, UpdateAPIView
 import json
-from docx import Document
-from sentence_transformers import SentenceTransformer, util
+
 from django.views.decorators.csrf import csrf_exempt
 UserModel = get_user_model()
 from difflib import SequenceMatcher
@@ -28,14 +27,12 @@ import logging
 import os
 from typing import List, Optional
 from rest_framework.response import Response
-import fitz  # PyMuPDF
-from sentence_transformers import SentenceTransformer, util
 from pathlib import Path
-from docx import Document
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
 
 
 # # Define the relative path to the DOCX file
