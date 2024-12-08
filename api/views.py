@@ -20,7 +20,7 @@ from docx import Document
 from sentence_transformers import SentenceTransformer, util
 from django.views.decorators.csrf import csrf_exempt
 UserModel = get_user_model()
-
+from difflib import SequenceMatcher
 
 
 
@@ -38,89 +38,89 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-# Define the relative path to the DOCX file
-def get_docx_path() -> str:
-    # Path to the DOCX file relative to this script
-    return str(Path(__file__).parent / 'knowledge.docx')
+# # Define the relative path to the DOCX file
+# def get_docx_path() -> str:
+#     # Path to the DOCX file relative to this script
+#     return str(Path(__file__).parent / 'knowledge.docx')
 
-def load_docx(file_path: str) -> str:
-    try:
-        full_path = file_path
-        if not os.path.exists(full_path):
-            logger.error(f"DOCX file does not exist at: {full_path}")
-            return ""
-        doc = Document(full_path)
-        text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
-        logger.info("DOCX loaded successfully.")
-        return text
-    except Exception as e:
-        logger.error(f"Error loading DOCX: {e}")
-        return ""
+# def load_docx(file_path: str) -> str:
+#     try:
+#         full_path = file_path
+#         if not os.path.exists(full_path):
+#             logger.error(f"DOCX file does not exist at: {full_path}")
+#             return ""
+#         doc = Document(full_path)
+#         text = "\n".join(paragraph.text for paragraph in doc.paragraphs)
+#         logger.info("DOCX loaded successfully.")
+#         return text
+#     except Exception as e:
+#         logger.error(f"Error loading DOCX: {e}")
+#         return ""
 
-# Split the extracted text into chunks for easier searching
-def split_text_into_chunks(text: str, chunk_size: int = 800) -> List[str]:
-    return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
+# # Split the extracted text into chunks for easier searching
+# def split_text_into_chunks(text: str, chunk_size: int = 800) -> List[str]:
+#     return [text[i:i + chunk_size] for i in range(0, len(text), chunk_size)]
 
-model = SentenceTransformer('all-MiniLM-L6-v2')
+# model = SentenceTransformer('all-MiniLM-L6-v2')
 
-# Encode the text chunks
-def encode_chunks(chunks: List[str]) -> List:
-    return model.encode(chunks, convert_to_tensor=True)
+# # Encode the text chunks
+# def encode_chunks(chunks: List[str]) -> List:
+#     return model.encode(chunks, convert_to_tensor=True)
 
-# Find the best matching text chunk for a user question
-def find_best_match_in_docx(user_question: str, text_chunks: List[str], threshold: float = 0.1) -> Optional[str]:
-    user_question_embedding = model.encode(user_question, convert_to_tensor=True)
-    chunk_embeddings = encode_chunks(text_chunks)
-    similarities = util.pytorch_cos_sim(user_question_embedding, chunk_embeddings)
+# # Find the best matching text chunk for a user question
+# def find_best_match_in_docx(user_question: str, text_chunks: List[str], threshold: float = 0.1) -> Optional[str]:
+#     user_question_embedding = model.encode(user_question, convert_to_tensor=True)
+#     chunk_embeddings = encode_chunks(text_chunks)
+#     similarities = util.pytorch_cos_sim(user_question_embedding, chunk_embeddings)
     
-    logger.info(f"User question embedding: {user_question_embedding}")
-    logger.info(f"Chunk embeddings: {chunk_embeddings}")
-    logger.info(f"Similarities: {similarities}")
+#     logger.info(f"User question embedding: {user_question_embedding}")
+#     logger.info(f"Chunk embeddings: {chunk_embeddings}")
+#     logger.info(f"Similarities: {similarities}")
 
-    # Get the index of the most similar chunk
-    most_similar_idx = similarities.argmax()
-    logger.info(f"Most similar index: {most_similar_idx}")
-    logger.info(f"Highest similarity score: {similarities.max()}")
+#     # Get the index of the most similar chunk
+#     most_similar_idx = similarities.argmax()
+#     logger.info(f"Most similar index: {most_similar_idx}")
+#     logger.info(f"Highest similarity score: {similarities.max()}")
 
-    # Check if the highest similarity chunk is a single paragraph
-    answer = text_chunks[most_similar_idx] if similarities.max() > threshold else None
+#     # Check if the highest similarity chunk is a single paragraph
+#     answer = text_chunks[most_similar_idx] if similarities.max() > threshold else None
 
-    if answer and '\n' not in answer:
-        # Return the answer if it is a single paragraph
-        return answer
+#     if answer and '\n' not in answer:
+#         # Return the answer if it is a single paragraph
+#         return answer
 
-    # Attempt to find a valid paragraph without new lines
-    for idx, chunk in enumerate(text_chunks):
-        if '\n' not in chunk and similarities[idx] > threshold:
-            return chunk  # Return the first valid paragraph found
+#     # Attempt to find a valid paragraph without new lines
+#     for idx, chunk in enumerate(text_chunks):
+#         if '\n' not in chunk and similarities[idx] > threshold:
+#             return chunk  # Return the first valid paragraph found
 
-    return None  # No valid single paragraph found
+#     return None  # No valid single paragraph found
 
-class ChatbotViewSet(viewsets.ViewSet):
-    serializer_class = ChatbotSerializer
+# class ChatbotViewSet(viewsets.ViewSet):
+#     serializer_class = ChatbotSerializer
 
-    def create(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data)
-        if serializer.is_valid():
-            user_question = serializer.validated_data['question']
+#     def create(self, request, *args, **kwargs):
+#         serializer = self.serializer_class(data=request.data)
+#         if serializer.is_valid():
+#             user_question = serializer.validated_data['question']
             
-            # Load and process the DOCX file
-            docx_path = get_docx_path()  # Get the relative path
-            docx_text = load_docx(docx_path)  # Use load_docx instead of load_pdf
-            if not docx_text:
-                return Response({'answer': "I don't understand the question."}, status=status.HTTP_200_OK)
+#             # Load and process the DOCX file
+#             docx_path = get_docx_path()  # Get the relative path
+#             docx_text = load_docx(docx_path)  # Use load_docx instead of load_pdf
+#             if not docx_text:
+#                 return Response({'answer': "I don't understand the question."}, status=status.HTTP_200_OK)
 
-            text_chunks = split_text_into_chunks(docx_text)
-            logger.info(f"Text chunks: {text_chunks[:3]}")  # Log first few chunks for inspection
+#             text_chunks = split_text_into_chunks(docx_text)
+#             logger.info(f"Text chunks: {text_chunks[:3]}")  # Log first few chunks for inspection
 
-            # Find the best match in the DOCX text
-            answer = find_best_match_in_docx(user_question, text_chunks)
+#             # Find the best match in the DOCX text
+#             answer = find_best_match_in_docx(user_question, text_chunks)
 
-            if answer:
-                return Response({'answer': answer}, status=status.HTTP_200_OK)
-            else:
-                return Response({'answer': "I don't understand the question."}, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#             if answer:
+#                 return Response({'answer': answer}, status=status.HTTP_200_OK)
+#             else:
+#                 return Response({'answer': "I don't understand the question."}, status=status.HTTP_200_OK)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 
@@ -204,7 +204,7 @@ class UserProfileView(generics.RetrieveAPIView):
 
 class AdvisorsListAPIView(generics.ListAPIView):
     serializer_class = UserSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def get_queryset(self):
         return User.objects.filter(is_superuser=True).exclude(username='admin')
@@ -346,7 +346,41 @@ class QuizDetailView(RetrieveAPIView):
     queryset = Quiz.objects.all()
     serializer_class = QuizSerializer
     lookup_field = 'id'
-    
+
+
+
+def calculate_score(correct_answer, user_answer):
+    """
+    Calculate the similarity score between the correct answer and the user's answer.
+    The score ranges from 0 to 100.
+    """
+    if not correct_answer or not user_answer:
+        return 0
+    similarity = SequenceMatcher(None, correct_answer.strip().lower(), user_answer.strip().lower()).ratio()
+    return int(similarity * 100)
+
+
+def generate_comment(score):
+    """
+    Generate a comment based on the score for financial quizzes.
+    """
+    if score == 0:
+        return "Don't be discouraged. Review the material and try again!"
+    elif 1 <= score <= 9:
+        return "A small start! Keep working on your financial knowledge."
+    elif 10 <= score <= 30:
+        return "You're making progress. Keep improving your understanding of financial topics."
+    elif 31 <= score <= 49:
+        return "Almost halfway there! Solid effort on financial concepts."
+    elif 50 <= score <= 69:
+        return "Good job! You're gaining a strong foundation in financial literacy."
+    elif 70 <= score <= 89:
+        return "You are good! Your financial understanding is commendable."
+    elif 90 <= score <= 100:
+        return "Excellent work! You have a great grasp of financial principles."
+    return "Keep learning and improving!"
+
+
 
 class SubmitQuizAnswerView(APIView):
     permission_classes = [IsAuthenticated]
@@ -360,13 +394,22 @@ class SubmitQuizAnswerView(APIView):
         if UserQuiz.objects.filter(user=request.user, quiz=quiz).exists():
             return Response({"error": "You have already submitted an answer for this quiz."}, status=status.HTTP_400_BAD_REQUEST)
 
+        user_answer = request.data.get('answer', '').strip()
+        correct_answer = quiz.answer.strip()
+
+        # Calculate the score
+        score = calculate_score(correct_answer, user_answer)
+
+        # Generate a comment based on the score
+        comment = generate_comment(score)
+
         data = {
             'user': request.user.id,  # User ID
             'quiz': quiz.id,          # Quiz ID
-            'answer': request.data.get('answer'),
+            'answer': user_answer,
             'status': request.data.get('status', False),
-            'score': request.data.get('score', 0),
-            'comment': request.data.get('comment', '')
+            'score': score,  # Automatically calculated score
+            'comment': comment  # Auto-generated comment
         }
 
         serializer = UserQuizSerializer(data=data, context={'request': request})
@@ -376,6 +419,8 @@ class SubmitQuizAnswerView(APIView):
         else:
             print("Serializer errors:", serializer.errors)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
         
 
 class CheckQuizStatusView(APIView):

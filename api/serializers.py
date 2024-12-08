@@ -43,7 +43,7 @@ class QuizSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Quiz
-        fields = ['id', 'provider', 'title', 'question', 'created_at']
+        fields = ['id', 'provider', 'title', 'question', 'answer', 'created_at']
 
     def create(self, validated_data):
         request = self.context.get('request', None)

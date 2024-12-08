@@ -35,6 +35,7 @@ class Quiz(models.Model):
     provider = models.ForeignKey(User, on_delete=models.CASCADE)
     title = models.CharField(max_length=10000)
     question = models.TextField()
+    answer = models.TextField()
     created_at = models.DateTimeField(auto_now_add=True)
     def __str__(self):
         return self.title
@@ -42,7 +43,8 @@ class Quiz(models.Model):
 class UserQuiz(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='user_quizzes')
     quiz = models.ForeignKey(Quiz, on_delete=models.CASCADE, related_name='user_quiz')
-    answer = models.TextField()
+    answer = models.TextField()  # Ensure this field exists
+    score = models.IntegerField(default=0)  # Default score is 0
     status = models.TextField()
     score = models.IntegerField(default=0)  # Use IntegerField if score is numeric
     created_at = models.DateTimeField(auto_now_add=True)
