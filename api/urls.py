@@ -41,5 +41,7 @@ urlpatterns = [
     
     path('userquiz/<int:pk>/update/', views.UserQuizUpdateView.as_view(), name='userquiz-update'),
     
+    
+    path('user-profile/<int:user_id>/profile-pic/', views.UserProfilePictureView.as_view(), name='user-profile-pic'),
    # path('', include(api_router.urls)),
 ]

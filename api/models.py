@@ -13,7 +13,7 @@ class UserProfile(models.Model):
     )
 
     def __str__(self):
-        return f"{self.user.username}'s Profile"
+        return f"{self.user.username} id{self.user.id}'s Profile"
 
 class ChatRoom(models.Model):
     users = models.ManyToManyField(User, related_name='chat_rooms')

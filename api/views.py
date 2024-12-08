@@ -474,3 +474,19 @@ class UserQuizUpdateView(UpdateAPIView):
         self.perform_update(serializer)
 
         return Response(serializer.data)
+    
+    
+    
+    
+class UserProfilePictureView(APIView):
+    """
+    API view to retrieve a user's profile picture based on their user ID.
+    """
+    def get(self, request, user_id):
+        # Retrieve the UserProfile instance for the given user ID
+        user_profile = get_object_or_404(UserProfile, user__id=user_id)
+        
+        # Serialize the profile_pic field
+        serializer = UserProfileSerializer(user_profile)
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)    
